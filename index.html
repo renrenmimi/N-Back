@@ -1,0 +1,2876 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="color-scheme" content="dark" />
+    <title>N-Back</title>
+    <style>
+      :root {
+        --bg: #06080f;
+        --panel: rgba(255, 255, 255, 0.03);
+        --panel-strong: rgba(255, 255, 255, 0.055);
+        --border: rgba(0, 180, 255, 0.1);
+        --border-strong: rgba(0, 212, 255, 0.18);
+        --text: #e2e8f0;
+        --text-dim: rgba(255, 255, 255, 0.42);
+        --primary: #00d4ff;
+        --secondary: #a855f7;
+        --neural: #0ea5e9;
+        --success: #34d399;
+        --error: #ff4757;
+        --warning: #f59e0b;
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-right: env(safe-area-inset-right, 0px);
+        --safe-bottom: env(safe-area-inset-bottom, 0px);
+        --safe-left: env(safe-area-inset-left, 0px);
+        --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+        --ease-pop: cubic-bezier(0.18, 1.1, 0.28, 1);
+      }
+
+      * {
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--bg);
+      }
+
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          sans-serif;
+        color: var(--text);
+        user-select: none;
+        -webkit-user-select: none;
+        touch-action: manipulation;
+      }
+
+      button {
+        appearance: none;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        margin: 0;
+        padding: 0;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+
+      .app {
+        position: relative;
+        width: 100%;
+        height: 100dvh;
+        min-height: 100dvh;
+        overflow: hidden;
+        padding:
+          calc(var(--safe-top) + 12px)
+          calc(var(--safe-right) + 12px)
+          calc(var(--safe-bottom) + 12px)
+          calc(var(--safe-left) + 12px);
+        isolation: isolate;
+      }
+
+      .bg,
+      .bg::before,
+      .bg::after,
+      .mesh,
+      .pulse,
+      .floaters {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .bg {
+        z-index: -8;
+        background:
+          radial-gradient(circle at 50% 50%, rgba(8, 11, 20, 0.92), rgba(6, 8, 15, 1) 70%),
+          linear-gradient(180deg, #05070d 0%, #06080f 100%);
+        overflow: hidden;
+      }
+
+      .bg::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: 0.025;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='160' viewBox='0 0 240 160'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='1'%3E%3Ccircle cx='24' cy='32' r='1.5'/%3E%3Ccircle cx='92' cy='44' r='1.5'/%3E%3Ccircle cx='164' cy='24' r='1.5'/%3E%3Ccircle cx='210' cy='58' r='1.5'/%3E%3Ccircle cx='38' cy='102' r='1.5'/%3E%3Ccircle cx='118' cy='94' r='1.5'/%3E%3Ccircle cx='186' cy='112' r='1.5'/%3E%3Ccircle cx='74' cy='144' r='1.5'/%3E%3Ccircle cx='156' cy='146' r='1.5'/%3E%3Cpath d='M24 32L92 44 164 24 210 58'/%3E%3Cpath d='M38 102L118 94 186 112'/%3E%3Cpath d='M92 44L118 94 74 144'/%3E%3Cpath d='M164 24L118 94 156 146'/%3E%3Cpath d='M38 102L74 144 156 146 186 112'/%3E%3C/g%3E%3C/svg%3E");
+        background-size: 240px 160px;
+      }
+
+      .bg::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 42%, rgba(0, 0, 0, 0.52) 100%);
+      }
+
+      .pulse {
+        z-index: -7;
+        background: radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.05), rgba(168, 85, 247, 0.02), rgba(0, 0, 0, 0));
+        animation: pulseBreath 8s ease-in-out infinite;
+      }
+
+      .floaters {
+        z-index: -6;
+        overflow: hidden;
+      }
+
+      .floaters span {
+        position: absolute;
+        width: var(--size);
+        height: var(--size);
+        left: var(--x);
+        top: var(--y);
+        border-radius: 50%;
+        opacity: var(--alpha);
+        background: var(--color);
+        will-change: transform;
+        animation:
+          driftUp var(--dur) linear infinite,
+          sway var(--sway) ease-in-out infinite alternate;
+        animation-delay: var(--delay);
+      }
+
+      .shell {
+        position: relative;
+        width: min(100%, 1100px);
+        height: 100%;
+        margin: 0 auto;
+        contain: layout style paint;
+      }
+
+      .screen {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        gap: clamp(10px, 1.7vw, 16px);
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(14px) scale(0.985);
+        transition:
+          opacity 300ms var(--ease-out),
+          transform 300ms var(--ease-out);
+      }
+
+      .screen.active {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0) scale(1);
+      }
+
+      .panel {
+        position: relative;
+        border-radius: 22px;
+        border: 1px solid var(--border);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+          rgba(6, 10, 18, 0.9);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.05),
+          0 14px 36px rgba(0, 0, 0, 0.34);
+      }
+
+      .panel::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        background:
+          linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 28%),
+          radial-gradient(circle at 82% 18%, rgba(0, 212, 255, 0.04), rgba(0, 212, 255, 0) 24%);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+      }
+
+      .brand-eyebrow {
+        margin: 0;
+        font-size: 11px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      .title {
+        margin: 8px 0 0;
+        font-size: clamp(2rem, 6vw, 4.5rem);
+        line-height: 0.94;
+        font-weight: 900;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .title span {
+        display: inline-block;
+        opacity: 0;
+        transform: translateY(12px);
+        animation: titleRise 500ms var(--ease-out) forwards;
+        animation-delay: var(--delay);
+      }
+
+      .title .accent { color: var(--primary); text-shadow: 0 0 18px rgba(0, 212, 255, 0.18); }
+      .title .alt { color: var(--secondary); text-shadow: 0 0 18px rgba(168, 85, 247, 0.16); }
+
+      .subtitle {
+        margin: 8px 0 0;
+        font-size: clamp(0.76rem, 1.7vw, 0.98rem);
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      .utility-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .icon-btn,
+      .pill,
+      .mode-card,
+      .summary-card,
+      .hud-strip,
+      .history-wrap,
+      .visual-shell,
+      .controls-row,
+      .result-card,
+      .config-card,
+      .start-btn,
+      .notify,
+      .action-btn {
+        border: 1px solid var(--border);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02)),
+          rgba(6, 10, 18, 0.9);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.04),
+          0 10px 24px rgba(0, 0, 0, 0.28);
+      }
+
+      .icon-btn {
+        width: 42px;
+        height: 42px;
+        border-radius: 14px;
+        display: grid;
+        place-items: center;
+        cursor: pointer;
+        transition: transform 180ms var(--ease-out), opacity 180ms ease;
+      }
+
+      .icon-btn:hover,
+      .icon-btn:focus-visible,
+      .mode-card:hover,
+      .mode-card:focus-visible,
+      .level-btn:hover,
+      .level-btn:focus-visible,
+      .speed-btn:hover,
+      .speed-btn:focus-visible,
+      .toggle-btn:hover,
+      .toggle-btn:focus-visible,
+      .response-btn:hover,
+      .response-btn:focus-visible,
+      .start-btn:hover,
+      .start-btn:focus-visible,
+      .action-btn:hover,
+      .action-btn:focus-visible {
+        transform: translateY(-2px);
+        outline: none;
+      }
+
+      .icon-btn:active,
+      .mode-card:active,
+      .level-btn:active,
+      .speed-btn:active,
+      .toggle-btn:active,
+      .response-btn:active,
+      .start-btn:active,
+      .action-btn:active {
+        transform: scale(0.97);
+      }
+
+      .start-body {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+        gap: clamp(10px, 1.7vw, 14px);
+      }
+
+      .hero-card,
+      .config-card {
+        padding: 16px 18px;
+      }
+
+      .hero-copy {
+        margin: 10px 0 0;
+        max-width: 760px;
+        font-size: clamp(0.88rem, 1.7vw, 1rem);
+        line-height: 1.58;
+        color: rgba(226, 232, 240, 0.78);
+      }
+
+      .selector-row,
+      .settings-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .section-label {
+        width: 100%;
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      .level-btn,
+      .speed-btn,
+      .toggle-btn {
+        min-height: 42px;
+        padding: 0 14px;
+        border-radius: 999px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        font-weight: 760;
+        letter-spacing: 0.04em;
+        color: rgba(226, 232, 240, 0.82);
+        transition: transform 180ms var(--ease-out), opacity 180ms ease;
+      }
+
+      .level-btn {
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+      }
+
+      .level-btn.active,
+      .speed-btn.active,
+      .toggle-btn.active,
+      .mode-card.active {
+        border-color: var(--border-strong);
+        background:
+          linear-gradient(180deg, rgba(0, 212, 255, 0.14), rgba(0, 212, 255, 0.04)),
+          rgba(6, 10, 18, 0.94);
+        color: #dff7ff;
+      }
+
+      .level-badge {
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.03);
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      .mode-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: clamp(10px, 1.6vw, 14px);
+        min-height: 0;
+      }
+
+      .mode-card {
+        position: relative;
+        padding: 16px;
+        border-radius: 20px;
+        cursor: pointer;
+        text-align: left;
+        overflow: hidden;
+        contain: layout style paint;
+        opacity: 0;
+        transform: translateY(16px) scale(0.985);
+        animation: cardIn 520ms var(--ease-out) forwards;
+        animation-delay: var(--delay);
+        transition: transform 200ms var(--ease-out), opacity 200ms ease;
+      }
+
+      .mode-card::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: var(--accent);
+      }
+
+      .mode-card::after {
+        content: "";
+        position: absolute;
+        right: -12%;
+        bottom: -24%;
+        width: 180px;
+        height: 180px;
+        border-radius: 50%;
+        background: radial-gradient(circle, var(--accent-soft), rgba(255, 255, 255, 0));
+        opacity: 0.85;
+      }
+
+      .mode-meta {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+        font-size: 11px;
+        font-weight: 740;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.74);
+      }
+
+      .mode-name {
+        margin: 14px 0 0;
+        font-size: clamp(1rem, 2vw, 1.28rem);
+        font-weight: 820;
+        letter-spacing: -0.02em;
+      }
+
+      .mode-copy {
+        margin: 8px 0 0;
+        font-size: 0.92rem;
+        line-height: 1.52;
+        color: rgba(226, 232, 240, 0.72);
+      }
+
+      .mode-note {
+        margin-top: 12px;
+        font-size: 0.84rem;
+        letter-spacing: 0.08em;
+        color: rgba(226, 232, 240, 0.84);
+      }
+
+      .start-btn {
+        min-height: 56px;
+        border-radius: 18px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 820;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: #04121a;
+        background: linear-gradient(180deg, #c9f4ff, #71d9ff);
+      }
+
+      .session-summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .summary-card {
+        padding: 14px;
+        border-radius: 18px;
+      }
+
+      .summary-label {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      .summary-value {
+        margin-top: 8px;
+        font-size: clamp(1rem, 2vw, 1.22rem);
+        font-weight: 780;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .game-body {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr) auto;
+        gap: clamp(10px, 1.6vw, 14px);
+      }
+
+      .hud-strip {
+        display: grid;
+        grid-template-columns: auto 1fr auto auto;
+        gap: 10px;
+        padding: 12px;
+        border-radius: 20px;
+        align-items: center;
+      }
+
+      .hud-item {
+        min-width: 0;
+        padding: 10px 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .hud-label {
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      .hud-value {
+        margin-top: 6px;
+        font-size: clamp(0.94rem, 1.7vw, 1.08rem);
+        font-weight: 760;
+        letter-spacing: -0.02em;
+      }
+
+      .mono {
+        font-family:
+          ui-monospace,
+          "SF Mono",
+          SFMono-Regular,
+          Menlo,
+          Monaco,
+          monospace;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .hud-pill {
+        padding: 10px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 760;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .history-wrap {
+        position: relative;
+        padding: 12px;
+        border-radius: 18px;
+        overflow: hidden;
+      }
+
+      .history-track {
+        position: relative;
+        display: flex;
+        gap: 8px;
+        min-height: 44px;
+        align-items: center;
+        overflow: hidden;
+      }
+
+      .history-connector {
+        position: absolute;
+        top: 50%;
+        height: 2px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(0, 212, 255, 0.16), rgba(168, 85, 247, 0.2));
+        opacity: 0;
+        transform: translateY(-50%) scaleX(0.9);
+        transform-origin: left center;
+        transition: opacity 200ms ease, transform 200ms var(--ease-out);
+        pointer-events: none;
+      }
+
+      .history-connector.show {
+        opacity: 1;
+        transform: translateY(-50%) scaleX(1);
+      }
+
+      .history-item {
+        position: relative;
+        width: 38px;
+        height: 38px;
+        flex: 0 0 auto;
+        border-radius: 12px;
+        border: 1px solid rgba(0, 180, 255, 0.1);
+        background: rgba(255, 255, 255, 0.02);
+        transform: translateX(0);
+        opacity: 1;
+        transition: transform 180ms var(--ease-out), opacity 180ms ease;
+      }
+
+      .history-item.current {
+        border-color: rgba(0, 212, 255, 0.22);
+      }
+
+      .history-item.target {
+        border-color: rgba(168, 85, 247, 0.2);
+      }
+
+      .history-mini-grid {
+        position: absolute;
+        inset: 5px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+        gap: 1px;
+        background: rgba(0, 180, 255, 0.1);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .history-mini-cell {
+        background: rgba(255, 255, 255, 0.015);
+      }
+
+      .history-mini-cell.on {
+        background: var(--item-color);
+        opacity: 0.9;
+      }
+
+      .history-note {
+        position: absolute;
+        inset: 6px;
+        display: grid;
+        place-items: center;
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.03);
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        color: var(--item-color);
+      }
+
+      .visual-shell {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        border-radius: 24px;
+        padding: 18px;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        contain: layout style paint;
+      }
+
+      .visual-shell::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background: radial-gradient(circle at 50% 50%, rgba(14, 165, 233, 0.03), rgba(0, 0, 0, 0));
+      }
+
+      .notify {
+        position: absolute;
+        top: 16px;
+        left: 50%;
+        z-index: 4;
+        transform: translateX(-50%) translateY(-4px);
+        padding: 10px 12px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 760;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .notify.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+        transition: opacity 180ms ease, transform 180ms var(--ease-out);
+      }
+
+      .notify.success { color: #dffff1; }
+      .notify.error { color: #ffe2e6; }
+      .notify.warning { color: #ffe5b7; }
+      .notify.info { color: #d9f7ff; }
+
+      .progress-line {
+        position: absolute;
+        left: 18px;
+        right: 18px;
+        bottom: 14px;
+        z-index: 2;
+        height: 3px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.05);
+        overflow: hidden;
+      }
+
+      .progress-fill {
+        width: 100%;
+        height: 100%;
+        transform-origin: left center;
+        transform: scaleX(0);
+        background: linear-gradient(90deg, rgba(0, 212, 255, 0.55), rgba(168, 85, 247, 0.5));
+      }
+
+      .grid-view,
+      .audio-view {
+        position: relative;
+        z-index: 1;
+        width: min(55vh, 70vw, 400px);
+        max-width: 100%;
+        aspect-ratio: 1;
+        display: grid;
+        place-items: center;
+      }
+
+      .grid-view {
+        contain: layout style paint;
+      }
+
+      .grid-board {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        padding: 1px;
+        border-radius: 22px;
+        background: rgba(0, 180, 255, 0.18);
+        box-shadow: 0 0 40px rgba(0, 180, 255, 0.05);
+        opacity: 0.96;
+        animation: gridBreath 4s ease-in-out infinite;
+      }
+
+      .grid-board::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 22px;
+        border: 1px solid rgba(0, 180, 255, 0.18);
+        opacity: calc(0.35 + var(--line-glow, 0));
+      }
+
+      .grid-board::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 22px;
+        background: linear-gradient(135deg, rgba(0, 212, 255, 0.03), rgba(255, 255, 255, 0));
+        opacity: 0.4;
+      }
+
+      .flow-line {
+        position: absolute;
+        height: 2px;
+        width: 32%;
+        left: -32%;
+        top: 0;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(0, 212, 255, 0), rgba(0, 212, 255, 0.08), rgba(0, 212, 255, 0));
+        opacity: 0.6;
+        animation: lineFlow 14s linear infinite;
+      }
+
+      .grid-cells {
+        position: absolute;
+        inset: 1px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+        gap: 1px;
+        background: rgba(0, 180, 255, 0.12);
+        border-radius: 21px;
+        overflow: hidden;
+      }
+
+      .cell {
+        position: relative;
+        background: rgba(255, 255, 255, 0.015);
+        overflow: hidden;
+      }
+
+      .cell-fill,
+      .cell-ghost,
+      .cell-feedback {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .cell-fill {
+        background:
+          radial-gradient(circle at center, var(--stim-color) 0%, rgba(255, 255, 255, 0) 70%);
+        transform: scale(0.9);
+      }
+
+      .cell-ghost {
+        background:
+          radial-gradient(circle at center, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 72%);
+        transform: scale(0.76);
+      }
+
+      .cell-feedback {
+        background: radial-gradient(circle at center, var(--feedback-color, rgba(255,255,255,0.16)) 0%, rgba(255,255,255,0) 74%);
+      }
+
+      .audio-canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .audio-label {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        font-size: clamp(2.2rem, 7vw, 4rem);
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        color: var(--audio-color, var(--primary));
+        text-shadow: 0 0 18px rgba(255, 255, 255, 0.12);
+        opacity: 0;
+      }
+
+      .audio-label.show {
+        opacity: 1;
+        transition: opacity 140ms ease;
+      }
+
+      .controls-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        padding: 12px;
+        border-radius: 20px;
+      }
+
+      .controls-row.single {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .response-btn {
+        position: relative;
+        min-height: 58px;
+        border-radius: 18px;
+        cursor: pointer;
+        padding: 12px 14px;
+        text-align: center;
+        font-size: clamp(0.9rem, 1.8vw, 1rem);
+        font-weight: 820;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(226, 232, 240, 0.9);
+        transition: transform 180ms var(--ease-out), opacity 180ms ease;
+        overflow: hidden;
+      }
+
+      .response-btn .hint {
+        display: block;
+        margin-top: 5px;
+        font-size: 0.72rem;
+        letter-spacing: 0.18em;
+        color: var(--text-dim);
+      }
+
+      .response-btn::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        opacity: 0;
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .response-btn.success::after {
+        opacity: 1;
+        background: rgba(52, 211, 153, 0.18);
+      }
+
+      .response-btn.error::after {
+        opacity: 1;
+        background: rgba(255, 71, 87, 0.18);
+      }
+
+      .response-btn.warning::after {
+        opacity: 1;
+        background: rgba(245, 158, 11, 0.18);
+      }
+
+      .response-btn.flash {
+        animation: btnPulse 260ms var(--ease-out);
+      }
+
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        padding: 18px;
+        background: rgba(4, 7, 12, 0.78);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 260ms ease;
+        z-index: 12;
+      }
+
+      .overlay.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .result-card {
+        width: min(100%, 460px);
+        border-radius: 24px;
+        padding: 18px;
+        opacity: 0;
+        transform: scale(0.94) translateY(12px);
+        transition:
+          opacity 320ms ease,
+          transform 320ms var(--ease-out);
+      }
+
+      .overlay.show .result-card {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+
+      .result-eyebrow {
+        margin: 0;
+        font-size: 11px;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      .result-title {
+        margin: 10px 0 0;
+        font-size: clamp(1.7rem, 5vw, 2.4rem);
+        line-height: 0.96;
+        font-weight: 860;
+      }
+
+      .hero-row {
+        margin-top: 14px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 128px;
+        gap: 16px;
+        align-items: center;
+      }
+
+      .hero-stat {
+        font-size: clamp(2rem, 8vw, 3.1rem);
+        line-height: 0.92;
+        font-weight: 900;
+        font-family:
+          ui-monospace,
+          "SF Mono",
+          SFMono-Regular,
+          Menlo,
+          Monaco,
+          monospace;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .hero-sub {
+        margin-top: 8px;
+        font-size: 0.92rem;
+        color: var(--text-dim);
+      }
+
+      .ring-wrap {
+        position: relative;
+        width: 128px;
+        height: 128px;
+        display: grid;
+        place-items: center;
+      }
+
+      .ring-wrap svg {
+        width: 128px;
+        height: 128px;
+        transform: rotate(-90deg);
+      }
+
+      .ring-track {
+        fill: none;
+        stroke: rgba(255, 255, 255, 0.08);
+        stroke-width: 10;
+      }
+
+      .ring-progress {
+        fill: none;
+        stroke: #8ff4bc;
+        stroke-width: 10;
+        stroke-linecap: round;
+        stroke-dasharray: 339.292;
+        stroke-dashoffset: 339.292;
+      }
+
+      .ring-center {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        text-align: center;
+      }
+
+      .ring-center strong {
+        display: block;
+        font-size: 1.48rem;
+        line-height: 1;
+      }
+
+      .ring-center span {
+        margin-top: 4px;
+        font-size: 0.76rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      .rating-pill,
+      .best-pill,
+      .adaptive-pill {
+        margin-top: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.04);
+        font-size: 13px;
+        font-weight: 760;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .best-pill[hidden],
+      .adaptive-pill[hidden] {
+        display: none !important;
+      }
+
+      .stats-grid {
+        margin-top: 16px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .stat-card {
+        padding: 12px;
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .stat-card .label {
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      .stat-card .value {
+        margin-top: 6px;
+        font-size: 1rem;
+        font-weight: 760;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .actions {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .action-btn {
+        min-height: 52px;
+        border-radius: 16px;
+        cursor: pointer;
+        font-size: 0.94rem;
+        font-weight: 780;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        transition: transform 180ms var(--ease-out), opacity 180ms ease;
+      }
+
+      .action-btn.primary {
+        color: #04121a;
+        background: linear-gradient(180deg, #c9f4ff, #71d9ff);
+      }
+
+      .action-btn.secondary {
+        color: var(--text);
+      }
+
+      .fx-canvas {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        pointer-events: none;
+      }
+
+      .live-region {
+        position: absolute;
+        left: -9999px;
+      }
+
+      @keyframes pulseBreath {
+        0%,
+        100% { opacity: 0.95; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.03); }
+      }
+
+      @keyframes driftUp {
+        from { transform: translate3d(0, 110vh, 0); }
+        to { transform: translate3d(0, -14vh, 0); }
+      }
+
+      @keyframes sway {
+        from { transform: translate3d(-8px, 0, 0); }
+        to { transform: translate3d(8px, 0, 0); }
+      }
+
+      @keyframes titleRise {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes cardIn {
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      @keyframes gridBreath {
+        0%,
+        100% { opacity: 0.94; }
+        50% { opacity: 1; }
+      }
+
+      @keyframes lineFlow {
+        0% { left: -32%; }
+        100% { left: 100%; }
+      }
+
+      @keyframes btnPulse {
+        0% { transform: scale(1); }
+        35% { transform: scale(0.96); }
+        100% { transform: scale(1); }
+      }
+
+      @media (max-width: 960px) {
+        .mode-grid,
+        .session-summary {
+          grid-template-columns: 1fr;
+        }
+
+        .hud-strip {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 640px) {
+        .app {
+          padding:
+            calc(var(--safe-top) + 10px)
+            calc(var(--safe-right) + 10px)
+            calc(var(--safe-bottom) + 10px)
+            calc(var(--safe-left) + 10px);
+        }
+
+        .topbar,
+        .hero-card,
+        .config-card {
+          padding: 12px;
+        }
+
+        .hero-copy {
+          font-size: 0.86rem;
+        }
+
+        .hud-strip {
+          gap: 8px;
+          padding: 10px;
+        }
+
+        .history-item {
+          width: 28px;
+          height: 28px;
+        }
+
+        .history-mini-grid {
+          inset: 4px;
+        }
+
+        .grid-view,
+        .audio-view {
+          width: min(70vw, 55vh, 320px);
+        }
+
+        .controls-row,
+        .controls-row.single,
+        .actions,
+        .stats-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .pulse,
+        .floaters span,
+        .title span,
+        .mode-card,
+        .grid-board,
+        .flow-line {
+          animation: none !important;
+        }
+
+        .screen,
+        .notify,
+        .history-connector,
+        .result-card,
+        .response-btn,
+        .action-btn,
+        .icon-btn,
+        .mode-card,
+        .start-btn,
+        .level-btn,
+        .speed-btn,
+        .toggle-btn {
+          transition-duration: 1ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app" id="app">
+      <div class="bg" aria-hidden="true"></div>
+      <div class="pulse" aria-hidden="true"></div>
+      <div class="floaters" id="floaters" aria-hidden="true"></div>
+
+      <div class="shell" id="shell">
+        <section class="screen start-screen active" id="startScreen" aria-label="N-Back start screen">
+          <header class="topbar panel">
+            <div>
+              <p class="brand-eyebrow">Cognitive training suite</p>
+              <h1 class="title" aria-label="N-Back Working Memory Trainer">
+                <span class="accent" style="--delay:20ms">N</span>
+                <span style="--delay:70ms">-</span>
+                <span style="--delay:120ms">B</span>
+                <span class="alt" style="--delay:170ms">A</span>
+                <span style="--delay:220ms">C</span>
+                <span class="accent" style="--delay:270ms">K</span>
+              </h1>
+              <p class="subtitle">Working Memory Trainer · 工作记忆训练</p>
+            </div>
+            <div class="utility-row">
+              <button class="icon-btn" id="muteBtnStart" type="button" aria-label="Mute sound">🔊</button>
+            </div>
+          </header>
+
+          <div class="start-body">
+            <section class="hero-card panel">
+              <p class="brand-eyebrow">How it works</p>
+              <p class="hero-copy">
+                One stimulus appears every cycle. Your job is to decide whether the current signal matches the one from exactly
+                N steps ago. That means constantly updating a mental buffer and suppressing older noise. In Dual N-Back you track
+                both position and color independently. In Audio mode, the stream becomes a sequence of tones.
+              </p>
+            </section>
+
+            <section class="config-card panel" aria-label="Session configuration">
+              <div class="selector-row">
+                <div class="section-label">N Level</div>
+                <button class="level-btn" data-level="1" type="button">1</button>
+                <button class="level-btn active" data-level="2" type="button">2</button>
+                <button class="level-btn" data-level="3" type="button">3</button>
+                <button class="level-btn" data-level="4" type="button">4</button>
+                <button class="level-btn" data-level="5" type="button">5</button>
+                <span class="level-badge" id="difficultyLabel">N=2 · Standard</span>
+              </div>
+              <div class="settings-grid" style="margin-top:12px;">
+                <div class="section-label">Cycle Speed</div>
+                <button class="speed-btn" data-speed="1500" type="button">1.5s</button>
+                <button class="speed-btn" data-speed="2000" type="button">2.0s</button>
+                <button class="speed-btn active" data-speed="2500" type="button">2.5s</button>
+                <button class="speed-btn" data-speed="3000" type="button">3.0s</button>
+                <button class="toggle-btn" id="adaptiveToggle" type="button">Adaptive: Off</button>
+                <button class="toggle-btn active" id="historyToggle" type="button">History: On</button>
+              </div>
+            </section>
+
+            <section class="mode-grid" id="modeGrid" aria-label="Mode selection">
+              <button class="mode-card active" data-mode="position" type="button" style="--delay:80ms; --accent: #00d4ff; --accent-soft: rgba(0,212,255,0.16);">
+                <span class="mode-meta">Mode 1 · Classic</span>
+                <h2 class="mode-name">Position N-Back</h2>
+                <p class="mode-copy">Track which cell lights up in the 3×3 grid. Pure spatial working memory.</p>
+                <div class="mode-note">Space = Match</div>
+              </button>
+              <button class="mode-card" data-mode="color" type="button" style="--delay:140ms; --accent: #a855f7; --accent-soft: rgba(168,85,247,0.16);">
+                <span class="mode-meta">Mode 2 · Color</span>
+                <h2 class="mode-name">Color N-Back</h2>
+                <p class="mode-copy">The center cell always fires. Only the color changes. Pure color memory.</p>
+                <div class="mode-note">Space = Match</div>
+              </button>
+              <button class="mode-card" data-mode="dual" type="button" style="--delay:200ms; --accent: #34d399; --accent-soft: rgba(52,211,153,0.16);">
+                <span class="mode-meta">Mode 3 · Hard</span>
+                <h2 class="mode-name">Dual N-Back</h2>
+                <p class="mode-copy">Track position and color independently. Press A for position, L for color.</p>
+                <div class="mode-note">A = Position • L = Color</div>
+              </button>
+              <button class="mode-card" data-mode="audio" type="button" style="--delay:260ms; --accent: #f59e0b; --accent-soft: rgba(245,158,11,0.16);">
+                <span class="mode-meta">Mode 4 · Audio</span>
+                <h2 class="mode-name">Audio N-Back</h2>
+                <p class="mode-copy">Distinct tones replace the grid. Judge pitch matches N steps back.</p>
+                <div class="mode-note">Space = Match</div>
+              </button>
+            </section>
+
+            <button class="start-btn" id="startBtn" type="button">Start Session</button>
+
+            <section class="session-summary" aria-label="Session summary">
+              <div class="summary-card">
+                <div class="summary-label">Last Run</div>
+                <div class="summary-value" id="summaryMode">No runs yet</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Last Accuracy</div>
+                <div class="summary-value" id="summaryAccuracy">--</div>
+              </div>
+              <div class="summary-card">
+                <div class="summary-label">Best Record</div>
+                <div class="summary-value" id="summaryBest">--</div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="screen game-screen" id="gameScreen" aria-label="N-Back gameplay screen">
+          <header class="topbar panel">
+            <div class="utility-row" style="justify-content:flex-start;">
+              <div class="hud-pill mono" id="nBadge">N = 2</div>
+              <div class="hud-item" style="padding:8px 12px;">
+                <div class="hud-label">Round</div>
+                <div class="hud-value" id="roundValue">1 / 22</div>
+              </div>
+            </div>
+            <div class="hud-item" style="min-width:150px;">
+              <div class="hud-label">Accuracy</div>
+              <div class="hud-value mono" id="accuracyValue">100%</div>
+            </div>
+            <div class="hud-item" style="min-width:160px;">
+              <div class="hud-label">Mode</div>
+              <div class="hud-value" id="modeValue">Position</div>
+            </div>
+            <div class="utility-row">
+              <button class="icon-btn" id="muteBtnGame" type="button" aria-label="Mute sound">🔊</button>
+              <button class="icon-btn" id="backBtn" type="button" aria-label="Back to settings">↩</button>
+            </div>
+          </header>
+
+          <section class="history-wrap panel" id="historyWrap" aria-label="Recent history">
+            <div class="history-track" id="historyTrack"></div>
+            <div class="history-connector" id="historyConnector"></div>
+          </section>
+
+          <section class="visual-shell panel" id="visualShell">
+            <canvas class="fx-canvas" id="fxCanvas" aria-hidden="true"></canvas>
+            <div class="notify" id="notify"></div>
+            <div class="grid-view" id="gridView">
+              <div class="grid-board" id="gridBoard">
+                <div class="flow-line" aria-hidden="true"></div>
+                <div class="grid-cells" id="gridCells"></div>
+              </div>
+            </div>
+            <div class="audio-view" id="audioView" hidden>
+              <canvas class="audio-canvas" id="audioCanvas" aria-hidden="true"></canvas>
+              <div class="audio-label" id="audioLabel">C4</div>
+            </div>
+            <div class="progress-line" aria-hidden="true">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+          </section>
+
+          <section class="controls-row single panel" id="controlsRow" aria-label="Response controls">
+            <button class="response-btn" id="singleMatchBtn" type="button" aria-label="Register match">
+              Match
+              <span class="hint" id="singleHint">Space</span>
+            </button>
+            <button class="response-btn" id="positionBtn" type="button" aria-label="Register position match" hidden>
+              Position Match
+              <span class="hint">A</span>
+            </button>
+            <button class="response-btn" id="colorBtn" type="button" aria-label="Register color match" hidden>
+              Color Match
+              <span class="hint">L</span>
+            </button>
+          </section>
+        </section>
+
+        <div class="overlay" id="resultOverlay" aria-hidden="true">
+          <div class="result-card panel" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+            <p class="result-eyebrow">Session Complete</p>
+            <h2 class="result-title" id="resultTitle">Working Memory Report</h2>
+            <div class="hero-row">
+              <div>
+                <div class="hero-stat" id="heroAccuracy">0%</div>
+                <div class="hero-sub" id="heroSub">Overall accuracy</div>
+                <div class="rating-pill" id="ratingPill">🎯 Lower Your N</div>
+                <div class="best-pill" id="bestPill" hidden>🏆 New record</div>
+                <div class="adaptive-pill" id="adaptivePill" hidden>Adaptive held</div>
+              </div>
+              <div class="ring-wrap">
+                <svg viewBox="0 0 128 128" aria-hidden="true">
+                  <circle class="ring-track" cx="64" cy="64" r="54"></circle>
+                  <circle class="ring-progress" id="ringProgress" cx="64" cy="64" r="54"></circle>
+                </svg>
+                <div class="ring-center">
+                  <div>
+                    <strong id="ringValue">0%</strong>
+                    <span>Accuracy</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-card"><div class="label">Hits / Total Matches</div><div class="value" id="statHits">0 / 0</div></div>
+              <div class="stat-card"><div class="label">False Alarms / Non-Matches</div><div class="value" id="statFalse">0 / 0</div></div>
+              <div class="stat-card"><div class="label">Misses</div><div class="value" id="statMisses">0</div></div>
+              <div class="stat-card"><div class="label">Correct Rejections</div><div class="value" id="statCR">0</div></div>
+              <div class="stat-card"><div class="label">Avg Hit RT</div><div class="value" id="statAvgRt">0.00s</div></div>
+              <div class="stat-card"><div class="label">Fastest RT</div><div class="value" id="statFastRt">0.00s</div></div>
+            </div>
+            <div class="actions">
+              <button class="action-btn primary" id="playAgainBtn" type="button">Play Again</button>
+              <button class="action-btn secondary" id="changeSettingsBtn" type="button">Change Settings</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="live-region" id="liveRegion" aria-live="polite" aria-atomic="true"></div>
+    </div>
+
+    <script>
+      (() => {
+        const REDUCE_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const VISUAL_COLORS = [
+          { name: "Red", hex: "#FF4757" },
+          { name: "Blue", hex: "#3B82F6" },
+          { name: "Green", hex: "#22C55E" },
+          { name: "Yellow", hex: "#FACC15" },
+          { name: "Purple", hex: "#A855F7" },
+          { name: "Cyan", hex: "#00D4FF" },
+        ];
+        const AUDIO_NOTES = [
+          { name: "C4", freq: 261.6, hex: "#00D4FF" },
+          { name: "D4", freq: 293.7, hex: "#3B82F6" },
+          { name: "E4", freq: 329.6, hex: "#22C55E" },
+          { name: "F4", freq: 349.2, hex: "#FACC15" },
+          { name: "G4", freq: 392.0, hex: "#A855F7" },
+          { name: "A4", freq: 440.0, hex: "#FF4757" },
+          { name: "B4", freq: 493.9, hex: "#0EA5E9" },
+          { name: "C5", freq: 523.3, hex: "#C084FC" },
+        ];
+        const HISTORY_LIMIT = 8;
+        const RESULT_RING = 339.292;
+        const MATCH_PROBABILITY = 0.33;
+
+        const MODE_INFO = {
+          position: {
+            label: "Position N-Back",
+            short: "Position",
+            controls: "Space = Match",
+            streams: ["position"],
+          },
+          color: {
+            label: "Color N-Back",
+            short: "Color",
+            controls: "Space = Match",
+            streams: ["color"],
+          },
+          dual: {
+            label: "Dual N-Back",
+            short: "Dual",
+            controls: "A = Position, L = Color",
+            streams: ["position", "color"],
+          },
+          audio: {
+            label: "Audio N-Back",
+            short: "Audio",
+            controls: "Space = Match",
+            streams: ["audio"],
+          },
+        };
+
+        const DIFFICULTY_LABELS = {
+          1: "Warm Up",
+          2: "Standard",
+          3: "Hard",
+          4: "Expert",
+          5: "Inhuman",
+        };
+
+        const state = {
+          screen: "start",
+          muted: false,
+          mode: "position",
+          nLevel: 2,
+          cycleMs: 2500,
+          adaptive: false,
+          showHistory: true,
+          historyAuto: true,
+          session: null,
+          loopRaf: 0,
+          resultRaf: 0,
+          notifyTimer: 0,
+          feedbackTimers: [],
+          currentLoopAt: 0,
+          records: {},
+          lastSession: null,
+        };
+
+        const els = {
+          floaters: document.getElementById("floaters"),
+          startScreen: document.getElementById("startScreen"),
+          gameScreen: document.getElementById("gameScreen"),
+          muteBtnStart: document.getElementById("muteBtnStart"),
+          muteBtnGame: document.getElementById("muteBtnGame"),
+          levelButtons: Array.from(document.querySelectorAll(".level-btn")),
+          difficultyLabel: document.getElementById("difficultyLabel"),
+          speedButtons: Array.from(document.querySelectorAll(".speed-btn")),
+          adaptiveToggle: document.getElementById("adaptiveToggle"),
+          historyToggle: document.getElementById("historyToggle"),
+          modeCards: Array.from(document.querySelectorAll(".mode-card")),
+          startBtn: document.getElementById("startBtn"),
+          summaryMode: document.getElementById("summaryMode"),
+          summaryAccuracy: document.getElementById("summaryAccuracy"),
+          summaryBest: document.getElementById("summaryBest"),
+          nBadge: document.getElementById("nBadge"),
+          roundValue: document.getElementById("roundValue"),
+          accuracyValue: document.getElementById("accuracyValue"),
+          modeValue: document.getElementById("modeValue"),
+          backBtn: document.getElementById("backBtn"),
+          historyWrap: document.getElementById("historyWrap"),
+          historyTrack: document.getElementById("historyTrack"),
+          historyConnector: document.getElementById("historyConnector"),
+          visualShell: document.getElementById("visualShell"),
+          fxCanvas: document.getElementById("fxCanvas"),
+          notify: document.getElementById("notify"),
+          gridView: document.getElementById("gridView"),
+          gridBoard: document.getElementById("gridBoard"),
+          gridCells: document.getElementById("gridCells"),
+          audioView: document.getElementById("audioView"),
+          audioCanvas: document.getElementById("audioCanvas"),
+          audioLabel: document.getElementById("audioLabel"),
+          progressFill: document.getElementById("progressFill"),
+          controlsRow: document.getElementById("controlsRow"),
+          singleMatchBtn: document.getElementById("singleMatchBtn"),
+          singleHint: document.getElementById("singleHint"),
+          positionBtn: document.getElementById("positionBtn"),
+          colorBtn: document.getElementById("colorBtn"),
+          resultOverlay: document.getElementById("resultOverlay"),
+          heroAccuracy: document.getElementById("heroAccuracy"),
+          heroSub: document.getElementById("heroSub"),
+          ratingPill: document.getElementById("ratingPill"),
+          bestPill: document.getElementById("bestPill"),
+          adaptivePill: document.getElementById("adaptivePill"),
+          ringProgress: document.getElementById("ringProgress"),
+          ringValue: document.getElementById("ringValue"),
+          statHits: document.getElementById("statHits"),
+          statFalse: document.getElementById("statFalse"),
+          statMisses: document.getElementById("statMisses"),
+          statCR: document.getElementById("statCR"),
+          statAvgRt: document.getElementById("statAvgRt"),
+          statFastRt: document.getElementById("statFastRt"),
+          playAgainBtn: document.getElementById("playAgainBtn"),
+          changeSettingsBtn: document.getElementById("changeSettingsBtn"),
+          liveRegion: document.getElementById("liveRegion"),
+        };
+
+        const fxCtx = els.fxCanvas.getContext("2d", {
+          alpha: true,
+          desynchronized: true,
+        });
+        const audioVisCtx = els.audioCanvas.getContext("2d", {
+          alpha: true,
+          desynchronized: true,
+        });
+
+        const cellEls = [];
+        for (let i = 0; i < 9; i += 1) {
+          const cell = document.createElement("div");
+          cell.className = "cell";
+          cell.innerHTML = '<div class="cell-fill"></div><div class="cell-ghost"></div><div class="cell-feedback"></div>';
+          els.gridCells.appendChild(cell);
+          cellEls.push({
+            root: cell,
+            fill: cell.querySelector(".cell-fill"),
+            ghost: cell.querySelector(".cell-ghost"),
+            feedback: cell.querySelector(".cell-feedback"),
+          });
+        }
+
+        class AudioEngine {
+          constructor() {
+            this.ctx = null;
+            this.master = null;
+            this.noiseBuffer = null;
+          }
+
+          ensure() {
+            if (state.muted) return false;
+            if (!this.ctx) {
+              const AC = window.AudioContext || window.webkitAudioContext;
+              if (!AC) return false;
+              this.ctx = new AC();
+              this.master = this.ctx.createGain();
+              this.master.gain.value = 0.2;
+              this.master.connect(this.ctx.destination);
+              this.noiseBuffer = this.makeNoiseBuffer(0.12);
+            }
+            if (this.ctx.state === "suspended") this.ctx.resume();
+            return true;
+          }
+
+          makeNoiseBuffer(seconds) {
+            const length = Math.floor(this.ctx.sampleRate * seconds);
+            const buffer = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < length; i += 1) data[i] = Math.random() * 2 - 1;
+            return buffer;
+          }
+
+          tone({ freq, gain = 0.03, attack = 0.01, decay = 0.08, when = 0, type = "sine", sweepTo = null }) {
+            if (!this.ensure()) return;
+            const start = this.ctx.currentTime + when;
+            const osc = this.ctx.createOscillator();
+            const g = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, start);
+            if (sweepTo) osc.frequency.exponentialRampToValueAtTime(Math.max(1, sweepTo), start + decay);
+            g.gain.setValueAtTime(0.0001, start);
+            g.gain.linearRampToValueAtTime(gain, start + attack);
+            g.gain.exponentialRampToValueAtTime(0.0001, start + decay);
+            osc.connect(g);
+            g.connect(this.master);
+            osc.start(start);
+            osc.stop(start + decay + 0.03);
+          }
+
+          noise({ gain = 0.01, decay = 0.05, when = 0, type = "bandpass", freq = 900, q = 1 }) {
+            if (!this.ensure()) return;
+            const start = this.ctx.currentTime + when;
+            const src = this.ctx.createBufferSource();
+            src.buffer = this.noiseBuffer;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = type;
+            filter.frequency.setValueAtTime(freq, start);
+            filter.Q.value = q;
+            const g = this.ctx.createGain();
+            g.gain.setValueAtTime(0.0001, start);
+            g.gain.exponentialRampToValueAtTime(gain, start + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.0001, start + decay);
+            src.connect(filter);
+            filter.connect(g);
+            g.connect(this.master);
+            src.start(start);
+            src.stop(start + decay + 0.02);
+          }
+
+          stimulus(freq = 520) {
+            this.tone({ freq, gain: 0.02, attack: 0.02, decay: 0.1 });
+          }
+
+          hit() {
+            this.tone({ freq: 880, gain: 0.028, decay: 0.03 });
+            this.tone({ freq: 1100, gain: 0.024, decay: 0.03, when: 0.04 });
+          }
+
+          miss() {
+            this.tone({ freq: 440, gain: 0.018, decay: 0.2, sweepTo: 330 });
+          }
+
+          falseAlarm() {
+            this.tone({ freq: 150, type: "sawtooth", gain: 0.018, decay: 0.1, sweepTo: 120 });
+          }
+
+          complete() {
+            const notes = [523.25, 659.25, 783.99, 1046.5];
+            notes.forEach((note, index) => {
+              this.tone({ freq: note, gain: 0.02, decay: 0.08, when: index * 0.08 });
+            });
+          }
+
+          levelUp() {
+            this.noise({ gain: 0.008, decay: 0.05, freq: 1400 });
+            this.tone({ freq: 880, gain: 0.02, decay: 0.05 });
+            this.tone({ freq: 1320, gain: 0.018, decay: 0.05, when: 0.04 });
+          }
+
+          levelDown() {
+            this.tone({ freq: 440, gain: 0.016, decay: 0.3, sweepTo: 330 });
+          }
+
+          playNote(note) {
+            this.tone({ freq: note.freq, gain: 0.022, attack: 0.02, decay: 0.4 });
+          }
+        }
+
+        const audio = new AudioEngine();
+
+        function clamp(value, min, max) {
+          return Math.max(min, Math.min(max, value));
+        }
+
+        function formatPercent(value) {
+          return `${Math.round(value)}%`;
+        }
+
+        function formatSeconds(ms) {
+          return `${(Math.max(0, ms) / 1000).toFixed(2)}s`;
+        }
+
+        function makeBucket() {
+          return {
+            hits: 0,
+            misses: 0,
+            falseAlarms: 0,
+            correctRejections: 0,
+            matchTotal: 0,
+            nonMatchTotal: 0,
+            hitRTs: [],
+          };
+        }
+
+        function totalRoundsForN(n) {
+          return 20 + n;
+        }
+
+        function setLiveRegion(text) {
+          els.liveRegion.textContent = text;
+        }
+
+        function bindPrimaryPress(element, handler) {
+          let lastPointerAt = -Infinity;
+          element.addEventListener(
+            "pointerdown",
+            (event) => {
+              lastPointerAt = performance.now();
+              handler(event);
+            },
+            { passive: true }
+          );
+          element.addEventListener("click", (event) => {
+            if (performance.now() - lastPointerAt < 450) return;
+            handler(event);
+          });
+        }
+
+        function setMuteUI() {
+          [els.muteBtnStart, els.muteBtnGame].forEach((button) => {
+            button.textContent = state.muted ? "🔇" : "🔊";
+            button.setAttribute("aria-label", state.muted ? "Enable sound" : "Mute sound");
+          });
+        }
+
+        function showNotify(text, tone = "info") {
+          window.clearTimeout(state.notifyTimer);
+          els.notify.textContent = text;
+          els.notify.className = `notify ${tone} show`;
+          state.notifyTimer = window.setTimeout(() => {
+            els.notify.className = "notify";
+          }, 1300);
+        }
+
+        function setScreen(screen) {
+          state.screen = screen;
+          els.startScreen.classList.toggle("active", screen === "start");
+          els.gameScreen.classList.toggle("active", screen === "game");
+        }
+
+        function getModeInfo() {
+          return MODE_INFO[state.mode];
+        }
+
+        function buildFloaters() {
+          const palette = [
+            "rgba(0, 212, 255, 0.1)",
+            "rgba(168, 85, 247, 0.09)",
+          ];
+          const fragment = document.createDocumentFragment();
+          for (let i = 0; i < 8; i += 1) {
+            const dot = document.createElement("span");
+            dot.style.setProperty("--size", `${2 + (i % 3)}px`);
+            dot.style.setProperty("--x", `${(i * 19 + 7) % 100}%`);
+            dot.style.setProperty("--y", `${(i * 13 + 11) % 100}%`);
+            dot.style.setProperty("--alpha", (0.06 + (i % 3) * 0.02).toFixed(2));
+            dot.style.setProperty("--dur", `${25 + (i % 4) * 5}s`);
+            dot.style.setProperty("--sway", `${8 + (i % 3) * 4}s`);
+            dot.style.setProperty("--delay", `${-i * 1.7}s`);
+            dot.style.setProperty("--color", palette[i % palette.length]);
+            fragment.appendChild(dot);
+          }
+          els.floaters.replaceChildren(fragment);
+        }
+
+        function updateConfigUI() {
+          els.levelButtons.forEach((button) => {
+            button.classList.toggle("active", Number(button.dataset.level) === state.nLevel);
+          });
+          els.speedButtons.forEach((button) => {
+            button.classList.toggle("active", Number(button.dataset.speed) === state.cycleMs);
+          });
+          els.modeCards.forEach((card) => {
+            card.classList.toggle("active", card.dataset.mode === state.mode);
+          });
+          els.adaptiveToggle.classList.toggle("active", state.adaptive);
+          els.adaptiveToggle.textContent = `Adaptive: ${state.adaptive ? "On" : "Off"}`;
+          els.historyToggle.classList.toggle("active", state.showHistory);
+          els.historyToggle.textContent = `History: ${state.showHistory ? "On" : "Off"}`;
+          els.difficultyLabel.textContent = `N=${state.nLevel} · ${DIFFICULTY_LABELS[state.nLevel]}`;
+        }
+
+        function updateSummary() {
+          if (!state.lastSession) {
+            els.summaryMode.textContent = "No runs yet";
+            els.summaryAccuracy.textContent = "--";
+            const best = state.records[state.mode]?.[state.nLevel];
+            els.summaryBest.textContent = best ? `${formatPercent(best.accuracy)} · ${formatSeconds(best.avgHitRT)}` : "--";
+            return;
+          }
+          els.summaryMode.textContent = `${state.lastSession.modeLabel} · N=${state.lastSession.nLevel}`;
+          els.summaryAccuracy.textContent = formatPercent(state.lastSession.accuracy);
+          const best = state.records[state.lastSession.mode]?.[state.lastSession.nLevel];
+          els.summaryBest.textContent = best ? `${formatPercent(best.accuracy)} · ${formatSeconds(best.avgHitRT)}` : "--";
+        }
+
+        function generateSequence(totalRounds, nLevel, itemCount, probability = MATCH_PROBABILITY, seed = null) {
+          const sequence = seed ? seed.slice() : [];
+          for (let i = sequence.length; i < totalRounds; i += 1) {
+            if (i < nLevel) {
+              sequence.push(Math.floor(Math.random() * itemCount));
+              continue;
+            }
+            const isMatch = Math.random() < probability;
+            if (isMatch) {
+              sequence.push(sequence[i - nLevel]);
+            } else {
+              let value;
+              do {
+                value = Math.floor(Math.random() * itemCount);
+              } while (value === sequence[i - nLevel]);
+              sequence.push(value);
+            }
+          }
+          return sequence;
+        }
+
+        function generateSessionData(mode, nLevel, totalRounds, existing = null, startIndex = 0) {
+          const data = existing || {
+            position: [],
+            color: [],
+            audio: [],
+          };
+          if (mode === "position") {
+            data.position = generateSequence(totalRounds, nLevel, 9, MATCH_PROBABILITY, data.position.slice(0, startIndex));
+          } else if (mode === "color") {
+            data.color = generateSequence(totalRounds, nLevel, VISUAL_COLORS.length, MATCH_PROBABILITY, data.color.slice(0, startIndex));
+          } else if (mode === "dual") {
+            data.position = generateSequence(totalRounds, nLevel, 9, MATCH_PROBABILITY, data.position.slice(0, startIndex));
+            data.color = generateSequence(totalRounds, nLevel, VISUAL_COLORS.length, MATCH_PROBABILITY, data.color.slice(0, startIndex));
+          } else if (mode === "audio") {
+            data.audio = generateSequence(totalRounds, nLevel, AUDIO_NOTES.length, MATCH_PROBABILITY, data.audio.slice(0, startIndex));
+          }
+          return data;
+        }
+
+        function getSessionRounds() {
+          return totalRoundsForN(state.nLevel);
+        }
+
+        function newSession() {
+          const totalRounds = getSessionRounds();
+          const streams = getModeInfo().streams;
+          return {
+            mode: state.mode,
+            nLevel: state.nLevel,
+            totalRounds,
+            data: generateSessionData(state.mode, state.nLevel, totalRounds),
+            roundIndex: -1,
+            sessionStartAt: 0,
+            currentRoundStart: 0,
+            currentResponses: {
+              position: null,
+              color: null,
+              audio: null,
+            },
+            currentStimulus: null,
+            currentVisualColor: "#00D4FF",
+            phase: "countdown",
+            countdownIndex: 0,
+            countdownStart: 0,
+            responses: [],
+            history: [],
+            streams,
+            score: {
+              position: makeBucket(),
+              color: makeBucket(),
+              audio: makeBucket(),
+            },
+            progressRatio: 0,
+            audioPulse: null,
+            feedback: [],
+            adaptiveGood: 0,
+            adaptiveBad: 0,
+            adaptiveChanges: [],
+            resultsShown: false,
+          };
+        }
+
+        function setHistoryDefault() {
+          if (!state.historyAuto) return;
+          state.showHistory = state.nLevel <= 2;
+          updateConfigUI();
+        }
+
+        function responseButtonsForMode() {
+          const dual = state.mode === "dual";
+          els.controlsRow.classList.toggle("single", !dual);
+          els.singleMatchBtn.hidden = dual;
+          els.positionBtn.hidden = !dual;
+          els.colorBtn.hidden = !dual;
+          els.singleHint.textContent = state.mode === "audio" ? "Space" : "Space";
+        }
+
+        function updateHud() {
+          if (!state.session) return;
+          const session = state.session;
+          const aggregate = getAggregateMetrics(session.score, session.streams);
+          els.nBadge.textContent = `N = ${state.nLevel}`;
+          els.roundValue.textContent = `${Math.min(session.roundIndex + 1, session.totalRounds)} / ${session.totalRounds}`;
+          els.accuracyValue.textContent = formatPercent(aggregate.accuracy);
+          els.modeValue.textContent = getModeInfo().short;
+          els.progressFill.style.transform = `scaleX(${session.progressRatio})`;
+          els.historyWrap.hidden = !state.showHistory;
+        }
+
+        function resizeCanvases() {
+          const gridRect = els.visualShell.getBoundingClientRect();
+          const dpr = Math.min(2, window.devicePixelRatio || 1);
+          const fxW = Math.max(1, Math.round(gridRect.width * dpr));
+          const fxH = Math.max(1, Math.round(gridRect.height * dpr));
+          if (els.fxCanvas.width !== fxW) els.fxCanvas.width = fxW;
+          if (els.fxCanvas.height !== fxH) els.fxCanvas.height = fxH;
+          els.fxCanvas.style.width = `${gridRect.width}px`;
+          els.fxCanvas.style.height = `${gridRect.height}px`;
+          fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+          const audioRect = els.audioView.getBoundingClientRect();
+          const aw = Math.max(1, Math.round(audioRect.width * dpr));
+          const ah = Math.max(1, Math.round(audioRect.height * dpr));
+          if (els.audioCanvas.width !== aw) els.audioCanvas.width = aw;
+          if (els.audioCanvas.height !== ah) els.audioCanvas.height = ah;
+          els.audioCanvas.style.width = `${audioRect.width}px`;
+          els.audioCanvas.style.height = `${audioRect.height}px`;
+          audioVisCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+
+        function clearFeedbackTimers() {
+          state.feedbackTimers.forEach((timerId) => window.clearTimeout(timerId));
+          state.feedbackTimers = [];
+        }
+
+        function resetVisuals() {
+          cellEls.forEach((cell) => {
+            cell.fill.style.opacity = "0";
+            cell.fill.style.transform = "scale(0.9)";
+            cell.ghost.style.opacity = "0";
+            cell.feedback.style.opacity = "0";
+          });
+          els.gridBoard.style.setProperty("--line-glow", "0");
+          els.audioLabel.classList.remove("show");
+          fxCtx.clearRect(0, 0, els.fxCanvas.width, els.fxCanvas.height);
+          audioVisCtx.clearRect(0, 0, els.audioCanvas.width, els.audioCanvas.height);
+        }
+
+        function getCurrentStimulus(session, index) {
+          if (session.mode === "position") {
+            return { position: session.data.position[index], color: null, audio: null };
+          }
+          if (session.mode === "color") {
+            return { position: 4, color: session.data.color[index], audio: null };
+          }
+          if (session.mode === "dual") {
+            return {
+              position: session.data.position[index],
+              color: session.data.color[index],
+              audio: null,
+            };
+          }
+          return { position: null, color: null, audio: session.data.audio[index] };
+        }
+
+        function getExpectedMatch(session, stream, roundIndex) {
+          if (roundIndex < state.nLevel) return false;
+          if (stream === "position") {
+            return session.data.position[roundIndex] === session.data.position[roundIndex - state.nLevel];
+          }
+          if (stream === "color") {
+            return session.data.color[roundIndex] === session.data.color[roundIndex - state.nLevel];
+          }
+          return session.data.audio[roundIndex] === session.data.audio[roundIndex - state.nLevel];
+        }
+
+        function responseAllowed(session, stream) {
+          if (!session || session.phase !== "running") return false;
+          if (!session.streams.includes(stream)) return false;
+          const response = session.currentResponses[stream];
+          return response === null;
+        }
+
+        function registerResponse(stream) {
+          const session = state.session;
+          if (!session || session.phase !== "running") return;
+          if (!responseAllowed(session, stream)) return;
+          const now = performance.now();
+          if (now > session.currentRoundStart + state.cycleMs) return;
+          session.currentResponses[stream] = now - session.currentRoundStart;
+          const button = stream === "position" && session.mode === "dual"
+            ? els.positionBtn
+            : stream === "color" && session.mode === "dual"
+              ? els.colorBtn
+              : els.singleMatchBtn;
+          flashResponseButton(button, null);
+        }
+
+        function flashResponseButton(button, type) {
+          button.classList.remove("success", "error", "warning", "flash");
+          void button.offsetWidth;
+          if (type) button.classList.add(type);
+          button.classList.add("flash");
+          const timerId = window.setTimeout(() => {
+            button.classList.remove("success", "error", "warning", "flash");
+          }, 320);
+          state.feedbackTimers.push(timerId);
+        }
+
+        function addFeedbackLink(kind, color, aIndex, bIndex) {
+          const item = {
+            kind,
+            color,
+            startedAt: performance.now(),
+            duration: 520,
+            aIndex,
+            bIndex,
+          };
+          state.session.feedback.push(item);
+        }
+
+        function showRoundFeedback(type, stream, message) {
+          const button = stream === "position" && state.mode === "dual"
+            ? els.positionBtn
+            : stream === "color" && state.mode === "dual"
+              ? els.colorBtn
+              : els.singleMatchBtn;
+          if (type === "hit") {
+            flashResponseButton(button, "success");
+            showNotify(message, "success");
+            audio.hit();
+          } else if (type === "false") {
+            flashResponseButton(button, "error");
+            showNotify(message, "error");
+            audio.falseAlarm();
+          } else if (type === "miss") {
+            flashResponseButton(button, "warning");
+            showNotify(message, "warning");
+            audio.miss();
+          }
+        }
+
+        function updateScoresForStream(session, stream, roundIndex) {
+          const bucket = session.score[stream];
+          const expected = getExpectedMatch(session, stream, roundIndex);
+          const response = session.currentResponses[stream];
+          const responseMade = response !== null;
+
+          if (expected) bucket.matchTotal += 1;
+          else bucket.nonMatchTotal += 1;
+
+          if (expected && responseMade) {
+            bucket.hits += 1;
+            bucket.hitRTs.push(response);
+            showRoundFeedback("hit", stream, `${stream.toUpperCase()} HIT`);
+            return 1;
+          }
+          if (expected && !responseMade) {
+            bucket.misses += 1;
+            showRoundFeedback("miss", stream, `${stream.toUpperCase()} MISS`);
+            return 0;
+          }
+          if (!expected && responseMade) {
+            bucket.falseAlarms += 1;
+            showRoundFeedback("false", stream, `${stream.toUpperCase()} FALSE`);
+            return 0;
+          }
+          bucket.correctRejections += 1;
+          return 1;
+        }
+
+        function aggregateHitRT(session) {
+          const values = [];
+          session.streams.forEach((stream) => {
+            values.push(...session.score[stream].hitRTs);
+          });
+          if (!values.length) return 0;
+          return values.reduce((sum, rt) => sum + rt, 0) / values.length;
+        }
+
+        function getAggregateMetrics(scoreMap, streams) {
+          let hits = 0;
+          let misses = 0;
+          let falseAlarms = 0;
+          let correctRejections = 0;
+          let matchTotal = 0;
+          let nonMatchTotal = 0;
+          const hitRTs = [];
+
+          streams.forEach((stream) => {
+            const bucket = scoreMap[stream];
+            hits += bucket.hits;
+            misses += bucket.misses;
+            falseAlarms += bucket.falseAlarms;
+            correctRejections += bucket.correctRejections;
+            matchTotal += bucket.matchTotal;
+            nonMatchTotal += bucket.nonMatchTotal;
+            hitRTs.push(...bucket.hitRTs);
+          });
+
+          const total = hits + misses + falseAlarms + correctRejections;
+          const accuracy = total ? ((hits + correctRejections) / total) * 100 : 100;
+          const avgHitRT = hitRTs.length ? hitRTs.reduce((sum, rt) => sum + rt, 0) / hitRTs.length : 0;
+          const fastestRT = hitRTs.length ? Math.min(...hitRTs) : 0;
+          const sensitivity = matchTotal ? hits / matchTotal : 1;
+          const precision = hits + falseAlarms ? hits / (hits + falseAlarms) : 1;
+
+          return {
+            hits,
+            misses,
+            falseAlarms,
+            correctRejections,
+            matchTotal,
+            nonMatchTotal,
+            total,
+            accuracy,
+            avgHitRT,
+            fastestRT,
+            sensitivity,
+            precision,
+          };
+        }
+
+        function renderHistory() {
+          const session = state.session;
+          if (!session || !state.showHistory) {
+            els.historyTrack.innerHTML = "";
+            els.historyConnector.classList.remove("show");
+            return;
+          }
+
+          const current = session.roundIndex;
+          const start = Math.max(0, current - HISTORY_LIMIT + 1);
+          const visible = [];
+          for (let i = start; i <= current; i += 1) visible.push(i);
+
+          const fragment = document.createDocumentFragment();
+          const currentVisibleIndex = visible.indexOf(current);
+          const targetRound = current - state.nLevel;
+          const targetVisibleIndex = visible.indexOf(targetRound);
+
+          visible.forEach((index) => {
+            const item = document.createElement("div");
+            item.className = "history-item";
+            if (index === current) item.classList.add("current");
+            if (index === targetRound) item.classList.add("target");
+            item.dataset.round = String(index);
+
+            if (session.mode === "audio") {
+              const note = AUDIO_NOTES[session.data.audio[index]];
+              item.style.setProperty("--item-color", note.hex);
+              item.innerHTML = `<div class="history-note">${note.name}</div>`;
+            } else {
+              const colorIndex = session.mode === "position" ? null : session.mode === "color" ? session.data.color[index] : session.data.color[index];
+              const fillColor = colorIndex == null ? "rgba(0, 212, 255, 0.9)" : VISUAL_COLORS[colorIndex].hex;
+              item.style.setProperty("--item-color", fillColor);
+              const mini = document.createElement("div");
+              mini.className = "history-mini-grid";
+              const litIndex = session.mode === "color" ? 4 : session.data.position[index];
+              for (let c = 0; c < 9; c += 1) {
+                const cell = document.createElement("div");
+                cell.className = `history-mini-cell${c === litIndex ? " on" : ""}`;
+                mini.appendChild(cell);
+              }
+              item.appendChild(mini);
+            }
+            fragment.appendChild(item);
+          });
+
+          els.historyTrack.replaceChildren(fragment);
+
+          if (targetVisibleIndex >= 0 && currentVisibleIndex >= 0 && currentVisibleIndex !== targetVisibleIndex) {
+            const children = Array.from(els.historyTrack.children);
+            const a = children[targetVisibleIndex];
+            const b = children[currentVisibleIndex];
+            const aRect = a.getBoundingClientRect();
+            const bRect = b.getBoundingClientRect();
+            const trackRect = els.historyTrack.getBoundingClientRect();
+            const left = aRect.left - trackRect.left + aRect.width * 0.5;
+            const right = bRect.left - trackRect.left + bRect.width * 0.5;
+            els.historyConnector.style.left = `${left}px`;
+            els.historyConnector.style.width = `${Math.max(8, right - left)}px`;
+            els.historyConnector.classList.add("show");
+          } else {
+            els.historyConnector.classList.remove("show");
+          }
+        }
+
+        function setModeVisuals() {
+          const audioMode = state.mode === "audio";
+          els.gridView.hidden = audioMode;
+          els.audioView.hidden = !audioMode;
+          responseButtonsForMode();
+        }
+
+        function recordAdaptiveChange(nextLevel, direction) {
+          const session = state.session;
+          if (!session || nextLevel === state.nLevel) return;
+          state.nLevel = nextLevel;
+          session.nLevel = nextLevel;
+          session.data = generateSessionData(session.mode, nextLevel, session.totalRounds, session.data, session.roundIndex + 1);
+          session.adaptiveChanges.push({ round: session.roundIndex + 1, nextLevel, direction });
+          updateConfigUI();
+          updateHud();
+          if (direction > 0) {
+            showNotify(`N Level Up -> ${nextLevel}`, "success");
+            audio.levelUp();
+          } else {
+            showNotify(`N Level Down -> ${nextLevel}`, "warning");
+            audio.levelDown();
+          }
+        }
+
+        function evaluateAdaptive(roundScore) {
+          const session = state.session;
+          if (!session || !state.adaptive) return;
+          if (roundScore > 0.85) session.adaptiveGood += 1;
+          else session.adaptiveGood = 0;
+          if (roundScore < 0.6) session.adaptiveBad += 1;
+          else session.adaptiveBad = 0;
+
+          if (session.adaptiveGood >= 3 && state.nLevel < 5) {
+            session.adaptiveGood = 0;
+            session.adaptiveBad = 0;
+            recordAdaptiveChange(state.nLevel + 1, 1);
+          } else if (session.adaptiveBad >= 2 && state.nLevel > 1) {
+            session.adaptiveGood = 0;
+            session.adaptiveBad = 0;
+            recordAdaptiveChange(state.nLevel - 1, -1);
+          }
+        }
+
+        function flashCellFeedback(index, color) {
+          if (index == null || index < 0 || index > 8) return;
+          const cell = cellEls[index];
+          cell.feedback.style.setProperty("--feedback-color", color);
+          cell.feedback.style.opacity = "0.9";
+          const timerId = window.setTimeout(() => {
+            cell.feedback.style.opacity = "0";
+          }, 320);
+          state.feedbackTimers.push(timerId);
+        }
+
+        function evaluateCurrentRound() {
+          const session = state.session;
+          if (!session) return;
+          let roundScore = 0;
+          let roundParts = 0;
+          const idx = session.roundIndex;
+          const current = session.currentStimulus;
+
+          session.streams.forEach((stream) => {
+            const expected = getExpectedMatch(session, stream, idx);
+            const score = updateScoresForStream(session, stream, idx);
+            roundScore += score;
+            roundParts += 1;
+            if (stream === "position") {
+              if (expected && session.currentResponses.position === null) {
+                flashCellFeedback(current.position, "rgba(245, 158, 11, 0.36)");
+                flashCellFeedback(session.data.position[idx - state.nLevel], "rgba(245, 158, 11, 0.22)");
+                addFeedbackLink("miss", "rgba(245,158,11,0.28)", current.position, session.data.position[idx - state.nLevel]);
+              }
+            }
+            if (stream === "color") {
+              if (expected && session.currentResponses.color === null) {
+                const currentPos = session.mode === "color" ? 4 : current.position;
+                const prevPos = session.mode === "color" ? 4 : session.data.position[idx - state.nLevel];
+                flashCellFeedback(currentPos, "rgba(245, 158, 11, 0.36)");
+                flashCellFeedback(prevPos, "rgba(245, 158, 11, 0.22)");
+                addFeedbackLink("miss", "rgba(245,158,11,0.28)", currentPos, prevPos);
+              }
+            }
+            if (stream === "audio" && expected && session.currentResponses.audio === null) {
+              showNotify("AUDIO MISS", "warning");
+            }
+          });
+
+          const result = {
+            index: idx,
+            responses: { ...session.currentResponses },
+            roundScore: roundParts ? roundScore / roundParts : 1,
+          };
+          session.responses.push(result);
+          evaluateAdaptive(result.roundScore);
+        }
+
+        function nextRound(now) {
+          const session = state.session;
+          if (!session) return;
+          session.roundIndex += 1;
+          if (session.roundIndex >= session.totalRounds) {
+            finishSession();
+            return;
+          }
+
+          session.currentRoundStart = now;
+          session.currentStimulus = getCurrentStimulus(session, session.roundIndex);
+          session.currentResponses.position = null;
+          session.currentResponses.color = null;
+          session.currentResponses.audio = null;
+          session.progressRatio = 0;
+
+          console.log("N-Back round started", {
+            round: session.roundIndex + 1,
+            totalRounds: session.totalRounds,
+            mode: session.mode,
+            stimulus: session.currentStimulus,
+          });
+
+          if (session.mode === "audio") {
+            const note = AUDIO_NOTES[session.currentStimulus.audio];
+            session.audioPulse = {
+              note,
+              startedAt: now,
+            };
+            els.audioLabel.textContent = note.name;
+            els.audioLabel.style.setProperty("--audio-color", note.hex);
+            els.audioLabel.classList.add("show");
+            audio.playNote(note);
+          } else {
+            session.audioPulse = null;
+            const baseFreq = session.mode === "color" || session.mode === "dual"
+              ? 520 + session.currentStimulus.color * 30
+              : 520;
+            audio.stimulus(baseFreq);
+          }
+
+          renderHistory();
+          updateHud();
+          setLiveRegion(`Round ${session.roundIndex + 1} started.`);
+        }
+
+        function renderGridStimulus(now) {
+          const session = state.session;
+          if (!session || session.mode === "audio") return;
+          const elapsed = now - session.currentRoundStart;
+          const activeMs = state.cycleMs * 0.4;
+          const fadeMs = state.cycleMs * 0.2;
+          const ghostMs = Math.min(400, state.cycleMs * 0.16);
+          let intensity = 0;
+          let ghost = 0;
+          if (elapsed < activeMs) {
+            intensity = 1 - 0.06 * Math.sin((elapsed / activeMs) * Math.PI * 2);
+          } else if (elapsed < activeMs + fadeMs) {
+            const t = (elapsed - activeMs) / fadeMs;
+            intensity = 1 - t;
+          }
+          if (elapsed >= activeMs + fadeMs && elapsed < activeMs + fadeMs + ghostMs) {
+            ghost = 0.06 * (1 - (elapsed - activeMs - fadeMs) / ghostMs);
+          }
+
+          const colorHex = session.mode === "position"
+            ? "#00D4FF"
+            : VISUAL_COLORS[session.currentStimulus.color].hex;
+          const activeIndex = session.mode === "color" ? 4 : session.currentStimulus.position;
+          els.gridBoard.style.setProperty("--line-glow", String(intensity * 0.45));
+
+          cellEls.forEach((cell, index) => {
+            if (index === activeIndex) {
+              cell.fill.style.setProperty("--stim-color", colorHex);
+              cell.fill.style.opacity = String(intensity * 0.95);
+              cell.fill.style.transform = `scale(${0.88 + intensity * 0.14})`;
+              cell.ghost.style.opacity = String(Math.max(ghost, intensity * 0.08));
+            } else {
+              cell.fill.style.opacity = "0";
+              cell.fill.style.transform = "scale(0.9)";
+              cell.ghost.style.opacity = "0";
+            }
+          });
+        }
+
+        function renderAudioVisualizer(now) {
+          const session = state.session;
+          const rect = els.audioView.getBoundingClientRect();
+          const w = rect.width;
+          const h = rect.height;
+          audioVisCtx.clearRect(0, 0, w, h);
+          if (!session || session.mode !== "audio" || !session.audioPulse) return;
+
+          const elapsed = now - session.audioPulse.startedAt;
+          const activeMs = state.cycleMs * 0.4;
+          const fadeMs = state.cycleMs * 0.2;
+          const total = activeMs + fadeMs;
+          const note = session.audioPulse.note;
+          let amplitude = 0;
+          if (elapsed < activeMs) amplitude = 1;
+          else if (elapsed < total) amplitude = 1 - (elapsed - activeMs) / fadeMs;
+          else amplitude = 0;
+
+          els.audioLabel.classList.toggle("show", amplitude > 0.02);
+          const cx = w * 0.5;
+          const cy = h * 0.5;
+          const radius = Math.min(w, h) * 0.18;
+          const bars = 64;
+          audioVisCtx.save();
+          audioVisCtx.translate(cx, cy);
+          for (let i = 0; i < bars; i += 1) {
+            const t = i / bars;
+            const angle = t * Math.PI * 2;
+            const wave = Math.sin((t + elapsed * 0.002) * Math.PI * 6) * 0.5 + 0.5;
+            const bar = radius + amplitude * (26 + wave * 42);
+            audioVisCtx.strokeStyle = note.hex;
+            audioVisCtx.globalAlpha = 0.12 + amplitude * 0.4;
+            audioVisCtx.lineWidth = i % 4 === 0 ? 3 : 2;
+            audioVisCtx.beginPath();
+            audioVisCtx.moveTo(Math.cos(angle) * radius, Math.sin(angle) * radius);
+            audioVisCtx.lineTo(Math.cos(angle) * bar, Math.sin(angle) * bar);
+            audioVisCtx.stroke();
+          }
+          audioVisCtx.globalAlpha = 0.18 + amplitude * 0.3;
+          audioVisCtx.fillStyle = note.hex;
+          audioVisCtx.beginPath();
+          audioVisCtx.arc(0, 0, radius * 0.7 + amplitude * 8, 0, Math.PI * 2);
+          audioVisCtx.fill();
+          audioVisCtx.restore();
+        }
+
+        function renderFeedbackEffects(now) {
+          const session = state.session;
+          if (!session) return;
+          fxCtx.clearRect(0, 0, els.fxCanvas.width, els.fxCanvas.height);
+          const rect = els.visualShell.getBoundingClientRect();
+          const dpr = Math.min(2, window.devicePixelRatio || 1);
+          const width = rect.width;
+          const height = rect.height;
+
+          if (!session.feedback.length) return;
+
+          fxCtx.save();
+          fxCtx.scale(1 / dpr * dpr, 1 / dpr * dpr);
+          for (let i = session.feedback.length - 1; i >= 0; i -= 1) {
+            const item = session.feedback[i];
+            const progress = (now - item.startedAt) / item.duration;
+            if (progress >= 1) {
+              session.feedback.splice(i, 1);
+              continue;
+            }
+            if (item.aIndex != null) {
+              const ax = ((item.aIndex % 3) + 0.5) * (width / 3);
+              const ay = (Math.floor(item.aIndex / 3) + 0.5) * (height / 3);
+              const alpha = (1 - progress) * 0.5;
+              fxCtx.strokeStyle = item.color;
+              fxCtx.fillStyle = item.color;
+              fxCtx.globalAlpha = alpha;
+              fxCtx.beginPath();
+              fxCtx.arc(ax, ay, 12 + progress * 28, 0, Math.PI * 2);
+              fxCtx.stroke();
+              if (item.bIndex != null) {
+                const bx = ((item.bIndex % 3) + 0.5) * (width / 3);
+                const by = (Math.floor(item.bIndex / 3) + 0.5) * (height / 3);
+                fxCtx.beginPath();
+                fxCtx.moveTo(ax, ay);
+                fxCtx.lineTo(bx, by);
+                fxCtx.stroke();
+              }
+            }
+          }
+          fxCtx.restore();
+        }
+
+        function updateSession(now) {
+          const session = state.session;
+          if (!session) return;
+
+          if (session.phase === "countdown") {
+            const elapsed = now - session.countdownStart;
+            const step = Math.floor(elapsed / 700);
+            const steps = ["3", "2", "1", "GO"];
+            const current = steps[Math.min(step, steps.length - 1)];
+            if (current !== state.currentCountdownText) {
+              state.currentCountdownText = current;
+              showNotify(current, "info");
+              audio.stimulus(current === "GO" ? 880 : 440);
+            }
+            if (elapsed >= 2800) {
+              console.log("N-Back countdown complete; entering running phase");
+              session.phase = "running";
+              session.sessionStartAt = now;
+              nextRound(now);
+            }
+            return;
+          }
+
+          if (session.phase !== "running") return;
+
+          session.progressRatio = clamp((now - session.currentRoundStart) / state.cycleMs, 0, 1);
+          renderGridStimulus(now);
+          renderAudioVisualizer(now);
+          renderFeedbackEffects(now);
+          updateHud();
+
+          if (now - session.currentRoundStart >= state.cycleMs) {
+            evaluateCurrentRound();
+            resetVisuals();
+            nextRound(now);
+          }
+        }
+
+        function stopLoop() {
+          cancelAnimationFrame(state.loopRaf);
+          state.loopRaf = 0;
+        }
+
+        function ensureLoop() {
+          if (state.loopRaf) return;
+          const frame = (now) => {
+            state.currentLoopAt = now;
+            if (state.session) updateSession(now);
+            if (state.session && !state.session.resultsShown) {
+              state.loopRaf = requestAnimationFrame(frame);
+            } else if (state.session && state.session.feedback.length) {
+              renderFeedbackEffects(now);
+              state.loopRaf = requestAnimationFrame(frame);
+            } else {
+              state.loopRaf = 0;
+            }
+          };
+          state.loopRaf = requestAnimationFrame(frame);
+        }
+
+        function startSession() {
+          console.log("Start clicked");
+          if (state.session && (state.session.phase === "countdown" || state.session.phase === "running")) {
+            console.log("Start ignored: session already active");
+            return;
+          }
+          hideResults();
+          clearFeedbackTimers();
+          stopLoop();
+          setScreen("game");
+          setModeVisuals();
+          console.log("Screen transition", {
+            startVisible: els.startScreen.classList.contains("active"),
+            gameVisible: els.gameScreen.classList.contains("active"),
+          });
+          resizeCanvases();
+          resetVisuals();
+          state.session = newSession();
+          console.log("Generated session data", {
+            mode: state.session.mode,
+            nLevel: state.session.nLevel,
+            totalRounds: state.session.totalRounds,
+            position: state.session.data.position,
+            color: state.session.data.color,
+            audio: state.session.data.audio,
+          });
+          const hasValidSequence = state.session.streams.every(
+            (stream) => Array.isArray(state.session.data[stream]) && state.session.data[stream].length === state.session.totalRounds
+          );
+          if (!hasValidSequence) {
+            console.error("N-Back failed to generate a valid sequence", state.session.data);
+            returnToStart();
+            return;
+          }
+          updateHud();
+          renderHistory();
+          const startAt = performance.now();
+          state.session.countdownStart = startAt;
+          state.currentCountdownText = "";
+          els.notify.className = "notify";
+          updateSession(startAt);
+          ensureLoop();
+        }
+
+        function finishSession() {
+          const session = state.session;
+          if (!session) return;
+          stopLoop();
+          session.phase = "done";
+          session.resultsShown = true;
+          resetVisuals();
+          audio.complete();
+          showResults();
+        }
+
+        function getResultMetrics() {
+          const session = state.session;
+          const aggregate = getAggregateMetrics(session.score, session.streams);
+          const record = {
+            accuracy: aggregate.accuracy,
+            avgHitRT: aggregate.avgHitRT || 999999,
+          };
+          const previous = state.records[state.mode]?.[session.nLevel] || null;
+          const isBest = !previous || record.accuracy > previous.accuracy || (record.accuracy === previous.accuracy && record.avgHitRT < previous.avgHitRT);
+          if (isBest) {
+            if (!state.records[state.mode]) state.records[state.mode] = {};
+            state.records[state.mode][session.nLevel] = record;
+          }
+          return { aggregate, isBest };
+        }
+
+        function ratingFor(accuracy, avgHitRT) {
+          if (accuracy > 95 && avgHitRT && avgHitRT < 800) return { text: "🧠 SAVANT", color: "#ffe59a" };
+          if (accuracy > 90 && avgHitRT && avgHitRT < 1000) return { text: "⚡ EXCEPTIONAL", color: "#d8f6ff" };
+          if (accuracy > 80 && avgHitRT && avgHitRT < 1200) return { text: "🔥 SHARP", color: "#ead7ff" };
+          if (accuracy > 70) return { text: "✅ SOLID", color: "#c3fce0" };
+          if (accuracy > 60) return { text: "👍 DEVELOPING", color: "#eef3ff" };
+          return { text: "🎯 LOWER YOUR N", color: "#ffd8de" };
+        }
+
+        function showResults() {
+          const session = state.session;
+          const { aggregate, isBest } = getResultMetrics();
+          const rating = ratingFor(aggregate.accuracy, aggregate.avgHitRT);
+          state.lastSession = {
+            mode: state.mode,
+            modeLabel: getModeInfo().short,
+            nLevel: session.nLevel,
+            accuracy: aggregate.accuracy,
+          };
+          updateSummary();
+
+          els.resultOverlay.classList.add("show");
+          els.resultOverlay.setAttribute("aria-hidden", "false");
+          els.heroAccuracy.textContent = "0%";
+          els.heroSub.textContent = session.streams.length === 2 ? "Dual-stream aggregate" : "Overall accuracy";
+          els.ratingPill.textContent = rating.text;
+          els.ratingPill.style.color = rating.color;
+          els.bestPill.hidden = !isBest;
+          els.adaptivePill.hidden = !state.adaptive;
+          if (state.adaptive) {
+            if (session.adaptiveChanges.length) {
+              const last = session.adaptiveChanges[session.adaptiveChanges.length - 1];
+              els.adaptivePill.textContent = `Adaptive ended at N=${last.nextLevel}`;
+            } else {
+              els.adaptivePill.textContent = `Adaptive held at N=${session.nLevel}`;
+            }
+          }
+          els.statHits.textContent = `${aggregate.hits} / ${aggregate.matchTotal}`;
+          els.statFalse.textContent = `${aggregate.falseAlarms} / ${aggregate.nonMatchTotal}`;
+          els.statMisses.textContent = String(aggregate.misses);
+          els.statCR.textContent = String(aggregate.correctRejections);
+          els.statAvgRt.textContent = aggregate.avgHitRT ? formatSeconds(aggregate.avgHitRT) : "--";
+          els.statFastRt.textContent = aggregate.fastestRT ? formatSeconds(aggregate.fastestRT) : "--";
+          els.ringProgress.style.strokeDashoffset = String(RESULT_RING);
+          els.ringProgress.style.stroke = aggregate.accuracy > 80 ? "#8ff4bc" : aggregate.accuracy > 60 ? "#ffd86b" : "#ff98a6";
+
+          const start = performance.now();
+          const duration = REDUCE_MOTION ? 20 : 900;
+          cancelAnimationFrame(state.resultRaf);
+          const tick = () => {
+            const progress = clamp((performance.now() - start) / duration, 0, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const value = aggregate.accuracy * eased;
+            els.heroAccuracy.textContent = formatPercent(value);
+            els.ringValue.textContent = formatPercent(value);
+            els.ringProgress.style.strokeDashoffset = String(RESULT_RING - RESULT_RING * (aggregate.accuracy / 100) * eased);
+            if (progress < 1) {
+              state.resultRaf = requestAnimationFrame(tick);
+            }
+          };
+          state.resultRaf = requestAnimationFrame(tick);
+          setLiveRegion(`Session complete. Accuracy ${Math.round(aggregate.accuracy)} percent.`);
+        }
+
+        function hideResults() {
+          els.resultOverlay.classList.remove("show");
+          els.resultOverlay.setAttribute("aria-hidden", "true");
+          cancelAnimationFrame(state.resultRaf);
+          state.resultRaf = 0;
+        }
+
+        function returnToStart() {
+          clearFeedbackTimers();
+          stopLoop();
+          hideResults();
+          resetVisuals();
+          state.session = null;
+          setScreen("start");
+          updateConfigUI();
+          updateSummary();
+        }
+
+        function selectMode(mode) {
+          state.mode = mode;
+          updateConfigUI();
+          updateSummary();
+        }
+
+        function selectN(level) {
+          state.nLevel = level;
+          setHistoryDefault();
+          updateConfigUI();
+          updateSummary();
+        }
+
+        function selectSpeed(speed) {
+          state.cycleMs = speed;
+          updateConfigUI();
+        }
+
+        function toggleAdaptive() {
+          state.adaptive = !state.adaptive;
+          updateConfigUI();
+        }
+
+        function toggleHistory() {
+          state.historyAuto = false;
+          state.showHistory = !state.showHistory;
+          updateConfigUI();
+        }
+
+        function bindEvents() {
+          els.levelButtons.forEach((button) => {
+            button.addEventListener("pointerdown", () => selectN(Number(button.dataset.level)), { passive: true });
+          });
+          els.speedButtons.forEach((button) => {
+            button.addEventListener("pointerdown", () => selectSpeed(Number(button.dataset.speed)), { passive: true });
+          });
+          els.modeCards.forEach((card) => {
+            card.addEventListener("pointerdown", () => selectMode(card.dataset.mode), { passive: true });
+          });
+          els.adaptiveToggle.addEventListener("pointerdown", toggleAdaptive, { passive: true });
+          els.historyToggle.addEventListener("pointerdown", toggleHistory, { passive: true });
+          bindPrimaryPress(els.startBtn, startSession);
+          [els.muteBtnStart, els.muteBtnGame].forEach((button) => {
+            button.addEventListener(
+              "pointerdown",
+              () => {
+                state.muted = !state.muted;
+                setMuteUI();
+              },
+              { passive: true }
+            );
+          });
+          els.backBtn.addEventListener("pointerdown", returnToStart, { passive: true });
+          bindPrimaryPress(els.playAgainBtn, startSession);
+          els.changeSettingsBtn.addEventListener("pointerdown", returnToStart, { passive: true });
+          els.singleMatchBtn.addEventListener("pointerdown", () => {
+            if (state.mode === "position") registerResponse("position");
+            else if (state.mode === "color") registerResponse("color");
+            else if (state.mode === "audio") registerResponse("audio");
+          }, { passive: true });
+          els.positionBtn.addEventListener("pointerdown", () => registerResponse("position"), { passive: true });
+          els.colorBtn.addEventListener("pointerdown", () => registerResponse("color"), { passive: true });
+
+          document.addEventListener("keydown", (event) => {
+            const key = event.key.toLowerCase();
+            if ([" ", "a", "l", "escape", "m"].includes(key)) event.preventDefault();
+            if (key === "escape" && state.screen === "game") {
+              returnToStart();
+              return;
+            }
+            if (key === "m") {
+              state.muted = !state.muted;
+              setMuteUI();
+              return;
+            }
+            if (state.screen !== "game" || !state.session || state.session.phase !== "running") return;
+            if (key === " " || key === "spacebar") {
+              if (state.mode === "position") registerResponse("position");
+              else if (state.mode === "color") registerResponse("color");
+              else if (state.mode === "audio") registerResponse("audio");
+            }
+            if (state.mode === "dual") {
+              if (key === "a") registerResponse("position");
+              if (key === "l") registerResponse("color");
+            }
+          });
+
+          window.addEventListener(
+            "resize",
+            () => {
+              resizeCanvases();
+              renderHistory();
+            },
+            { passive: true }
+          );
+          window.addEventListener(
+            "orientationchange",
+            () => {
+              const timer = window.setTimeout(() => {
+                resizeCanvases();
+                renderHistory();
+              }, 100);
+              state.feedbackTimers.push(timer);
+            },
+            { passive: true }
+          );
+        }
+
+        function boot() {
+          buildFloaters();
+          updateConfigUI();
+          updateSummary();
+          setMuteUI();
+          resizeCanvases();
+          bindEvents();
+          setModeVisuals();
+          renderHistory();
+        }
+
+        boot();
+      })();
+    </script>
+  </body>
+</html>
