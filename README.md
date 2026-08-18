@@ -5,6 +5,8 @@
 The classic working-memory task. A stimulus appears each turn; you say whether it matches the one
 from N steps back. Simple rules, brutal at higher N.
 
+![Working memory training across four modes](docs/screenshot.jpg)
+
 ## Modes
 
 | Mode | What you track |
