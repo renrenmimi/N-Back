@@ -18,4 +18,4 @@ from N steps back. Simple rules, brutal at higher N.
 
 ## Tech
 
-Single-file HTML5 app. No build step, no dependencies.
+One `index.html` file.
