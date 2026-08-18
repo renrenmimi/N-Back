@@ -1,4 +1,4 @@
-# N-Back 🧠
+# N-Back
 
 **▶ [Train now](https://renrenmimi.github.io/N-Back/)** — runs in your browser, nothing to install.
 
